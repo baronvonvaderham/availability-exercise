@@ -1,97 +1,104 @@
 import React, { Component } from 'react';
+import axios from 'axios';
+import NameForm from './components/NameForm.js';
+import AvailabilitySchedule from './components/AvailabilitySchedule.js';
+import Appointments from './components/Appointments.js';
 
 class App extends Component {
   constructor(props) {
     super(props);
-    this.state = {};
-    this.fetchToday();
+    this.state = {
+      today: null,
+      studentName: null,
+      availabilityAdvisorIds: [],
+      availabilityTimes: [],
+      appointmentsData: [],
+    };
+    this.onNameChange = this.onNameChange.bind(this);
+    this.bookAppointment = this.bookAppointment.bind(this);
   }
 
-  async fetchToday() {
-    try {
-      const res = await fetch("http://localhost:4433/today");
-      const json = await res.json();
-      this.setState({today: json.today});
-    } catch (e) {
-      console.error("Failed to fetch 'today' data", e);
+  onNameChange(e) {
+    this.setState({
+      studentName: e.target.value
+    });
+  }
+
+  componentDidMount() {
+    let availabilitySchedulePromise = axios.get("http://localhost:4433/availability-schedule")
+      .catch((err) => {
+        console.error("Error retrieving Availability Schedule data.", err);
+      });
+
+    let appointmentsPromise = axios.get("http://localhost:4433/booked-appointments")
+      .catch((err) => {
+        console.error("Error retrieving Booked Appointments data.", err);
+      });
+
+    let todayPromise = axios.get("http://localhost:4433/today")
+      .catch((err) => {
+        console.error("Error retrieving Current Date.")
+      });
+
+    Promise.all([availabilitySchedulePromise, appointmentsPromise, todayPromise])
+      .then((results) => {
+        this.setState({
+          availabilityAdvisorIds: results[0].data.advisor_ids,
+          availabilityTimes: results[0].data.advisor_times,
+          appointments: results[1].data,
+          today: new Date(results[2].data.today).toLocaleDateString(),
+        });
+      });
+  }
+
+  bookAppointment(advisorId, advisorTime, i, j) {
+    // NOTATION: i is the index of the advisorId in that list, j is the index of the advisorTime in that list
+    if (!this.state.studentName) {
+      alert('Student name is required to schedule an appointment.')
+    } else {
+      let appointment = {
+        advisorId: advisorId,
+        advisorTime: advisorTime,
+        studentName: this.state.studentName,
+      };
+      axios.post("http://localhost:4433/book-appointment", {appointment: appointment});
+
+      // Add to the appointments data table
+      let appointmentsData = [...this.state.appointmentsData, appointment];
+
+      // Remove from the availability table, then delete any advisors who now have zero slots left
+      let availabilityTimes = this.state.availabilityTimes;
+      let availabilityAdvisorIds = this.state.availabilityAdvisorIds;
+      availabilityTimes[i].splice(j, 1);
+      if (availabilityTimes[i].length === 0) {
+        availabilityAdvisorIds.splice(i, 1);
+        availabilityTimes.splice(i, 1);
+      }
+
+      // Now just update the state to display all the changes!
+      this.setState({
+        availabilityAdvisorIds: availabilityAdvisorIds,
+        availabilityTimes: availabilityTimes,
+        appointmentsData: appointmentsData,
+      });
     }
   }
 
   render() {
     return (
       <div className="App container">
-        <h1>Book Time with an Advisor</h1>
-
-        {this.state.today && <span id="today">Today is {this.state.today}.</span>}
-
-        <form id="name-form" className="col-md-6">
-          <div className="form-group">
-            <label htmlFor="name-field">Your Name</label>
-            <input type="text" id="name-field" className="form-control" />
-          </div>
-        </form>
-
-        <h2>Available Times</h2>
-        <table className="advisors table">
-          <thead>
-            <tr>
-              <th>Advisor ID</th>
-              <th>Available Times</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>35545</td>
-              <td>
-                <ul className="list-unstyled">
-                  <li>
-                    <time dateTime="2019-04-04T13:00:00-04:00" className="book-time">4/4/2019 1:00 pm</time>
-                    <button className="book btn-small btn-primary">Book</button>
-                  </li>
-                  <li>
-                    <time dateTime="2019-04-05T10:00:00-04:00" className="book-time">4/5/2019 10:00 am</time>
-                    <button className="book btn-small btn-primary">Book</button>
-                  </li>
-                </ul>
-              </td>
-            </tr>
-            <tr>
-              <td>36232</td>
-              <td>
-                <ul className="list-unstyled">
-                  <li>
-                    <time dateTime="2019-04-02T13:00:00-04:00" className="book-time">4/2/2019 1:00 pm</time>
-                    <button className="book btn-small btn-primary">Book</button>
-                  </li>
-                  <li>
-                    <time dateTime="2019-04-03T11:00:00-04:00" className="book-time">4/3/2019 11:00 am</time>
-                    <button className="book btn-small btn-primary">Book</button>
-                  </li>
-                </ul>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <h2>Booked Times</h2>
-        <table className="bookings table">
-          <thead>
-            <tr>
-              <th>Advisor ID</th>
-              <th>Student Name</th>
-              <th>Date/Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>36232</td>
-              <td>John Smith</td>
-              <td>
-                <time dateTime="2019-04-03T10:00:00-04:00">4/3/2019 10:00 am</time>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <NameForm
+          today={this.state.today}
+          onNameChange={this.onNameChange}
+        />
+        <AvailabilitySchedule
+          availabilityAdvisorIds={this.state.availabilityAdvisorIds}
+          availabilityTimes={this.state.availabilityTimes}
+          bookAppointment={this.bookAppointment}
+        />
+        <Appointments
+          appointmentsData={this.state.appointmentsData}
+        />
       </div>
     );
   }

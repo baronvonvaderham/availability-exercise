@@ -2,3 +2,7 @@ flask==1.0.2
 flask_cors==3.0.7
 requests==2.21.0
 pytest==4.4.0
+Flask-SQLAlchemy==2.4.0
+Flask-Migrate==2.5.2
+model_mommy==1.2.1
+pytest-flask-sqlalchemy==1.0.2
